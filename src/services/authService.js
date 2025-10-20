@@ -1,100 +1,112 @@
-const axios = require('axios');
-const { AUTH_SERVICE_URL } = require('../config/constants');
+const { User } = require('../models');
 
 /**
- * Autentica un usuario contra el microservicio de auth
+ * Autentica un usuario directamente contra la base de datos
  */
 exports.login = async (username, password) => {
     try {
-        const response = await axios.post(
-            `${AUTH_SERVICE_URL}/api/auth/login`,
-            { username, password }
-        );
+        const user = await User.findOne({ where: { username } });
+        
+        if (!user || password !== user.password) {
+            return {
+                success: false,
+                statusCode: 401,
+                message: 'Credenciales inválidas'
+            };
+        }
+
+        await user.update({ session_status: 'active' });
 
         return {
             success: true,
-            statusCode: response.status,
-            data: response.data,
+            statusCode: 200,
+            data: {
+                user: {
+                    id: user.id_user,
+                    username: user.username,
+                    status_sesion: true
+                }
+            },
             message: 'Autenticación exitosa'
         };
     } catch (error) {
-        if (error.response) {
-            return {
-                success: false,
-                statusCode: error.response.status,
-                message: error.response.data?.message || 'Error al autenticar usuario'
-            };
-        }
-        
         return {
             success: false,
-            statusCode: 503,
-            message: 'Servicio de autenticación no disponible'
+            statusCode: 500,
+            message: 'Error al autenticar usuario'
         };
     }
 };
 
 /**
- * Valida si un usuario tiene sesión activa
+ * Valida si un usuario tiene sesión activa directamente en la base de datos
  */
 exports.validateSession = async (username) => {
     try {
-        const response = await axios.get(
-            `${AUTH_SERVICE_URL}/api/auth/validate`,
-            { params: { username } }
-        );
+        const user = await User.findOne({ where: { username } });
+
+        if (!user) {
+            return {
+                success: false,
+                statusCode: 404,
+                message: 'Usuario no encontrado'
+            };
+        }
+
+        const isActive = user.session_status === 'active';
 
         return {
             success: true,
-            statusCode: response.status,
-            data: response.data.data,
-            message: response.data.message
+            statusCode: 200,
+            data: {
+                userId: user.id_user,
+                username: user.username,
+                session_status: user.session_status,
+                isActive: isActive
+            },
+            message: isActive ? 'Sesión activa' : 'Sesión inactiva'
         };
     } catch (error) {
-        if (error.response) {
-            return {
-                success: false,
-                statusCode: error.response.status,
-                message: error.response.data?.message || 'Error al validar sesión'
-            };
-        }
-        
         return {
             success: false,
-            statusCode: 503,
-            message: 'Servicio de autenticación no disponible'
+            statusCode: 500,
+            message: 'Error al validar sesión'
         };
     }
 };
 
 /**
- * Cierra la sesión de un usuario
+ * Cierra la sesión de un usuario directamente en la base de datos
  */
 exports.logout = async (username) => {
     try {
-        const response = await axios.post(
-            `${AUTH_SERVICE_URL}/api/auth/logout`,
-            { username }
-        );
+        const user = await User.findOne({ where: { username } });
+
+        if (!user) {
+            return {
+                success: false,
+                statusCode: 404,
+                message: 'Usuario no encontrado'
+            };
+        }
+
+        await user.update({ session_status: 'inactive' });
 
         return {
             success: true,
-            statusCode: response.status,
-            message: response.data?.message || 'Sesión cerrada exitosamente'
+            statusCode: 200,
+            data: {
+                userId: user.id_user,
+                username: user.username,
+                session_status: 'inactive'
+            },
+            message: 'Logout exitoso'
         };
     } catch (error) {
-        if (error.response) {
-            return {
-                success: false,
-                statusCode: error.response.status,
-                message: error.response.data?.message || 'Error al cerrar sesión'
-            };
-        }
-        
         return {
             success: false,
-            statusCode: 503,
-            message: 'Servicio de autenticación no disponible'
+            statusCode: 500,
+            message: 'Error al cerrar sesión'
         };
     }
 };
