@@ -1,0 +1,37 @@
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'munozaldananicolas@gmail.com'
+  smtp_auth_username: 'munozaldananicolas@gmail.com'
+  smtp_auth_password: 'jzkorrdeccuvlzyo'
+  smtp_require_tls: true
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'email-notifications'
+
+receivers:
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'munozaldananicolasdanilo@gmail.com'
+        text: |
+          [ALERTA] {{ .GroupLabels.alertname }}
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Description: {{ .CommonAnnotations.description }}
+          Severity: {{ .CommonAnnotations.severity }}
+
+          {{ range .Alerts }}
+          Instance: {{ .Labels.instance }}
+          Summary: {{ .Annotations.summary }}
+          Details: {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

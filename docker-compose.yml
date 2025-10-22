@@ -72,14 +72,17 @@ services:
     networks:
       - app-network
 
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx_exporter
     ports:
-      - '9100:9100'
-    restart: unless-stopped
+      - '9113:9113'
+    command:
+      - '-nginx.scrape-uri=http://nginx:80/nginx_status'
     networks:
       - app-network
+    depends_on:
+      - nginx
 
   prometheus:
     image: prom/prometheus:latest
@@ -88,11 +91,24 @@ services:
       - '9090:9090'
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
+      - '--web.external-url=http://localhost:9090'
     networks:
       - app-network
+
+  #node_exporter:
+    #image: prom/node-exporter:latest
+    #container_name: node_exporter
+    #ports:
+      #- '9100:9100'
+    #restart: unless-stopped
+    #networks:
+      #- app-network
 
   grafana:
     image: grafana/grafana:latest
@@ -108,9 +124,76 @@ services:
     networks:
       - app-network
 
+  mysqld_exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld_exporter
+    volumes:
+      - ./docker/mysqld_exporter/.my.cnf:/.my.cnf
+    ports:
+      - '9104:9104'
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+    # Coleccionadores completos para métricas detalladas
+    command:
+      - '--collect.global_status'
+      - '--collect.global_variables'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.info_schema.innodb_tablespaces'
+      - '--collect.info_schema.innodb_cmp'
+      - '--collect.info_schema.innodb_cmpmem'
+      - '--collect.info_schema.processlist'
+      - '--collect.info_schema.query_response_time'
+      - '--collect.info_schema.schemastats'
+      - '--collect.info_schema.tables'
+      - '--collect.info_schema.tablestats'
+      - '--collect.info_schema.userstats'
+      - '--collect.perf_schema.eventswaits'
+      - '--collect.perf_schema.file_events'
+      - '--collect.perf_schema.tablelocks'
+      - '--collect.perf_schema.indexiowaits'
+      - '--collect.perf_schema.tableiowaits'
+      - '--collect.slave_status'
+      - '--collect.heartbeat'
+      - '--collect.binlog_size'
+      - '--config.my-cnf=/.my.cnf'
+
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - '8080:8080'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    ports:
+      - '9093:9093'
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - app-network
+
 volumes:
   mysql_data:
   grafana_data:
+  prometheus_data:
+  alertmanager_data:
 
 networks:
   app-network:

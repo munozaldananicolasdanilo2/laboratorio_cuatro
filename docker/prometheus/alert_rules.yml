@@ -1,0 +1,76 @@
+groups:
+  - name: host_alerts
+    rules:
+      # Alerta: CPU alto
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de CPU"
+          description: "El uso de CPU está por encima del 80% por más de 2 minutos"
+
+      # Alerta: Memoria alta
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de memoria"
+          description: "El uso de memoria está por encima del 85%"
+
+      # Alerta: Disco lleno
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{device="/dev/vda1", mountpoint="/etc/hosts"} / node_filesystem_size_bytes{device="/dev/vda1", mountpoint="/etc/hosts"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Espacio en disco bajo"
+          description: "El espacio en disco está por encima del 90%"
+
+  - name: mysql_alerts
+    rules:
+      # Alerta: MySQL caído
+      - alert: MySQLDown
+        expr: mysql_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL está caído"
+          description: "MySQL no responde por más de 1 minuto"
+
+      # Alerta: Conexiones MySQL altas
+      - alert: HighMySQLConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto número de conexiones MySQL"
+          description: "Las conexiones MySQL están por encima del 80% del máximo"
+
+  - name: application_alerts
+    rules:
+      # Alerta: App caída
+      - alert: AppInstanceDown
+        expr: up{job=~"app.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instancia de aplicación caída"
+          description: "Una instancia de la aplicación no responde"
+
+      # Alerta: Alta latencia
+      - alert: HighResponseTime
+        expr: rate(nginx_http_requests_total[5m]) > 0 and nginx_connections_active > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta latencia en la aplicación"
+          description: "La aplicación tiene alta latencia con múltiples conexiones activas"
